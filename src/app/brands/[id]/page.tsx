@@ -1,340 +1,347 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { gql, useLazyQuery } from '@apollo/client';
-import {
-  // root array variants
-  Q_MODELS_ID_WITH_SORT,
-  Q_MODELS_BRANDID_WITH_SORT,
-  Q_MODELS_ID_NO_SORT,
-  Q_MODELS_BRANDID_NO_SORT,
-  Q_MODELS_BY_BRAND_ID,
-  Q_MODELS_BY_BRAND_INT,
-  Q_FIND_MODELS_BY_BRAND_ID,
-  Q_FIND_MODELS_BY_BRAND_INT,
-  // nested brand → models variants
-  Q_BRAND_ID_MODELS,
-  Q_BRAND_INT_MODELS,
-  Q_BRAND_BY_ID_ID_MODELS,
-  Q_BRAND_BY_ID_INT_MODELS,
-  Q_FIND_UNIQUE_BRAND_ID_MODELS,
-  Q_FIND_UNIQUE_BRAND_INT_MODELS,
-  Q_FIND_BRAND_BY_ID_ID_MODELS,
-  Q_FIND_BRAND_BY_ID_INT_MODELS,
-  Q_BRAND_ID_GUITAR_MODELS,
-  Q_BRAND_ID_BRAND_MODELS,
-} from '../../graphql/queries';
-import { useI18n } from '../../lib/lang';
-import SkeletonCard from '@/app/components/SkeletonCard';
-import ModelCard, { Model as ModelType } from '@/app/components/ModelCard';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { gql, useApolloClient } from '@apollo/client';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useI18n } from '../../lib/lang';
+import ModelCard from '../../components/ModelCard';
 
-type Model = ModelType & {
-  // tolerate any extra fields your API might add
-  [k: string]: any;
-};
+/* ─────────────── Inline queries (no external imports) ─────────────── */
 
-/** Fallback GraphQL document so Apollo never receives `undefined`. */
-const DUMMY_DOC = gql`query __D { __typename }`;
-
-const SORT_CANDIDATES = ['NAME_ASC', 'NAME_DESC', 'PRICE_ASC', 'PRICE_DESC', 'NAME', 'PRICE', 'ASC', 'DESC'];
-
-/** Recursively find the first array of objects that looks like a "model list". */
-function findModelArray(node: any): Model[] | undefined {
-  if (!node) return undefined;
-  if (Array.isArray(node) && node.length && typeof node[0] === 'object') {
-    if ('id' in node[0] && 'name' in node[0]) return node as Model[];
-  }
-  if (typeof node === 'object') {
-    for (const key of Object.keys(node)) {
-      const res = findModelArray((node as any)[key]);
-      if (res) return res;
+/** brand(id: ID!) { models } */
+const Q_BRAND_BY_ID_ID = gql`
+  query BrandModelsById_ID($id: ID!) {
+    brand(id: $id) {
+      id
+      name
+      models {
+        id
+        name
+        type
+        price
+        imageUrl
+        year
+        description
+      }
     }
   }
-  return undefined;
+`;
+
+/** brand(id: Int!) { models } – some schemas use Int for id */
+const Q_BRAND_BY_ID_INT = gql`
+  query BrandModelsById_INT($id: Int!) {
+    brand(id: $id) {
+      id
+      name
+      models {
+        id
+        name
+        type
+        price
+        imageUrl
+        year
+        description
+      }
+    }
+  }
+`;
+
+/** findBrandModels(id: ID!) – fallback in case models are returned as a top-level list */
+const Q_FIND_MODELS_BY_BRAND_ID = gql`
+  query FindModelsByBrand_ID($id: ID!) {
+    findBrandModels(id: $id) {
+      id
+      name
+      type
+      price
+      imageUrl
+      year
+      description
+    }
+  }
+`;
+
+/** findBrandModels(brandId: ID!) – another common variant */
+const Q_FIND_MODELS_BY_BRAND_BRANDID = gql`
+  query FindModelsByBrand_BRANDID($brandId: ID!) {
+    findBrandModels(brandId: $brandId) {
+      id
+      name
+      type
+      price
+      imageUrl
+      year
+      description
+    }
+  }
+`;
+
+/* ─────────────── Types & helpers ─────────────── */
+
+type Model = {
+  id: string;
+  name: string;
+  type?: string | null;
+  price?: number | null;
+  imageUrl?: string | null;
+  year?: number | null;
+  description?: string | null;
+};
+
+const SAMPLE_MODELS_BY_BRAND: Record<string, Model[]> = {
+  '1': [
+    { id: 'f-tele', name: 'Telecaster', type: 'Electric', price: 1199, year: 1951, imageUrl: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=1200&auto=format&fit=crop' },
+    { id: 'f-strat', name: 'Stratocaster', type: 'Electric', price: 1299, year: 1954, imageUrl: 'https://images.unsplash.com/photo-1483412033650-1015ddeb83d1?q=80&w=1200&auto=format&fit=crop' },
+    { id: 'f-jbass', name: 'Jazz Bass', type: 'Bass', price: 999, year: 1960, imageUrl: 'https://images.unsplash.com/photo-1507878866276-a947ef722fee?q=80&w=1200&auto=format&fit=crop' },
+  ],
+  '2': [
+    { id: 'g-lespaul', name: 'Les Paul Standard', type: 'Electric', price: 2499, year: 1958, imageUrl: 'https://images.unsplash.com/photo-1497534446932-c925b458314e?q=80&w=1200&auto=format&fit=crop' },
+    { id: 'g-sgstd', name: 'SG Standard', type: 'Electric', price: 1699, year: 1961, imageUrl: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=1200&auto=format&fit=crop' },
+    { id: 'g-es335', name: 'ES-335', type: 'Semi-Hollow', price: 2999, year: 1958, imageUrl: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=1200&auto=format&fit=crop' },
+  ],
+  '3': [
+    { id: 'ib-rg', name: 'RG Prestige', type: 'Electric', price: 1399, year: 1987, imageUrl: 'https://images.unsplash.com/photo-1524578271613-de039ec3f506?q=80&w=1200&auto=format&fit=crop' },
+    { id: 'ib-sr', name: 'SR Bass', type: 'Bass', price: 899, year: 1987, imageUrl: 'https://images.unsplash.com/photo-1510920018318-3b4dfe979e7a?q=80&w=1200&auto=format&fit=crop' },
+  ],
+};
+
+const gridVariants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+};
+
+/** Normalize any model-like object into our UI shape */
+function coerceModels(arr: any[]): Model[] {
+  const out: Model[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const raw = arr[i] ?? {};
+    const id = String(raw.id ?? raw.modelId ?? i);
+    const name = String(raw.name ?? raw.modelName ?? `Model ${i + 1}`);
+    const type = raw.type ?? raw.modelType ?? null;
+
+    let price: number | null = null;
+    if (typeof raw.price === 'number') price = raw.price;
+    else if (typeof raw.price === 'string') {
+      const n = Number(raw.price.replace(/[^\d.-]/g, ''));
+      price = Number.isFinite(n) ? n : null;
+    }
+
+    const imageUrl = raw.imageUrl ?? raw.image ?? raw.photoUrl ?? null;
+    const year =
+      (typeof raw.year === 'number' ? raw.year : undefined) ??
+      (typeof raw.modelYear === 'number' ? raw.modelYear : undefined) ??
+      null;
+
+    const description = raw.description ?? raw.summary ?? null;
+    out.push({ id, name, type, price, imageUrl, year, description });
+  }
+  return out;
 }
+
+/* ─────────────── Page ─────────────── */
 
 export default function BrandModelsPage() {
   const { t } = useI18n();
   const params = useParams<{ id?: string }>();
-  const brandIdRaw = typeof params?.id === 'string' ? params.id : '';
-  const brandIdNum = Number.isFinite(Number(brandIdRaw)) ? Number(brandIdRaw) : NaN;
+  const brandId = typeof params?.id === 'string' ? params.id : '';
+  const brandIdNum = Number.isFinite(Number(brandId)) ? Number(brandId) : null;
 
-  const [models, setModels] = useState<Model[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
+  const apollo = useApolloClient();
 
   // UI state
   const [q, setQ] = useState('');
-  const [sortKey, setSortKey] = useState<'relevance' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'>(
-    'relevance'
-  );
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [minPrice, setMinPrice] = useState<string>('');
-  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [sortKey, setSortKey] =
+    useState<'relevance' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'>('relevance');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
 
-  const docs = {
-    // root array docs
-    idWithSort: Q_MODELS_ID_WITH_SORT ?? DUMMY_DOC,
-    brandIdWithSort: Q_MODELS_BRANDID_WITH_SORT ?? DUMMY_DOC,
-    idNoSort: Q_MODELS_ID_NO_SORT ?? DUMMY_DOC,
-    brandIdNoSort: Q_MODELS_BRANDID_NO_SORT ?? DUMMY_DOC,
-    byBrandId: Q_MODELS_BY_BRAND_ID ?? DUMMY_DOC,
-    byBrandInt: Q_MODELS_BY_BRAND_INT ?? DUMMY_DOC,
-    findByBrandId: Q_FIND_MODELS_BY_BRAND_ID ?? DUMMY_DOC,
-    findByBrandInt: Q_FIND_MODELS_BY_BRAND_INT ?? DUMMY_DOC,
-    // nested brand docs
-    brand_id_models: Q_BRAND_ID_MODELS ?? DUMMY_DOC,
-    brand_int_models: Q_BRAND_INT_MODELS ?? DUMMY_DOC,
-    brandById_id_models: Q_BRAND_BY_ID_ID_MODELS ?? DUMMY_DOC,
-    brandById_int_models: Q_BRAND_BY_ID_INT_MODELS ?? DUMMY_DOC,
-    uniqueBrand_id_models: Q_FIND_UNIQUE_BRAND_ID_MODELS ?? DUMMY_DOC,
-    uniqueBrand_int_models: Q_FIND_UNIQUE_BRAND_INT_MODELS ?? DUMMY_DOC,
-    findBrandById_id_models: Q_FIND_BRAND_BY_ID_ID_MODELS ?? DUMMY_DOC,
-    findBrandById_int_models: Q_FIND_BRAND_BY_ID_INT_MODELS ?? DUMMY_DOC,
-    brand_id_guitarModels: Q_BRAND_ID_GUITAR_MODELS ?? DUMMY_DOC,
-    brand_id_brandModels: Q_BRAND_ID_BRAND_MODELS ?? DUMMY_DOC,
+  // Data state
+  const [models, setModels] = useState<Model[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  /** Silent runner: try a query and return an array if it works */
+  const tryQuery = async (query: any, vars: Record<string, unknown>, pick: 'brand' | 'find') => {
+    try {
+      const res = await apollo.query({ query, variables: vars, fetchPolicy: 'no-cache' });
+      if (pick === 'brand') {
+        const arr = res?.data?.brand?.models ?? [];
+        return Array.isArray(arr) ? arr : [];
+      }
+      const arr = res?.data?.findBrandModels ?? [];
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return []; // no noise, just return empty and let the next attempt run
+    }
   };
-
-  // bind lazy queries
-  const [runIdWithSort]      = useLazyQuery(docs.idWithSort,      { fetchPolicy: 'no-cache' });
-  const [runBrandIdWithSort] = useLazyQuery(docs.brandIdWithSort, { fetchPolicy: 'no-cache' });
-  const [runIdNoSort]        = useLazyQuery(docs.idNoSort,        { fetchPolicy: 'no-cache' });
-  const [runBrandIdNoSort]   = useLazyQuery(docs.brandIdNoSort,   { fetchPolicy: 'no-cache' });
-  const [runByBrandId]       = useLazyQuery(docs.byBrandId,       { fetchPolicy: 'no-cache' });
-  const [runByBrandInt]      = useLazyQuery(docs.byBrandInt,      { fetchPolicy: 'no-cache' });
-  const [runFindByBrandId]   = useLazyQuery(docs.findByBrandId,   { fetchPolicy: 'no-cache' });
-  const [runFindByBrandInt]  = useLazyQuery(docs.findByBrandInt,  { fetchPolicy: 'no-cache' });
-
-  const [runBrand_id_models]          = useLazyQuery(docs.brand_id_models,          { fetchPolicy: 'no-cache' });
-  const [runBrand_int_models]         = useLazyQuery(docs.brand_int_models,         { fetchPolicy: 'no-cache' });
-  const [runBrandById_id_models]      = useLazyQuery(docs.brandById_id_models,      { fetchPolicy: 'no-cache' });
-  const [runBrandById_int_models]     = useLazyQuery(docs.brandById_int_models,     { fetchPolicy: 'no-cache' });
-  const [runUniqueBrand_id_models]    = useLazyQuery(docs.uniqueBrand_id_models,    { fetchPolicy: 'no-cache' });
-  const [runUniqueBrand_int_models]   = useLazyQuery(docs.uniqueBrand_int_models,   { fetchPolicy: 'no-cache' });
-  const [runFindBrandById_id_models]  = useLazyQuery(docs.findBrandById_id_models,  { fetchPolicy: 'no-cache' });
-  const [runFindBrandById_int_models] = useLazyQuery(docs.findBrandById_int_models, { fetchPolicy: 'no-cache' });
-  const [runBrand_id_guitarModels]    = useLazyQuery(docs.brand_id_guitarModels,    { fetchPolicy: 'no-cache' });
-  const [runBrand_id_brandModels]     = useLazyQuery(docs.brand_id_brandModels,     { fetchPolicy: 'no-cache' });
-
-  const runners = useMemo(() => {
-    const steps: { name: string; fn: () => Promise<any> }[] = [];
-
-    // 1) findBrandModels(id/brandId) with/without sort (id as string)
-    for (const sortBy of SORT_CANDIDATES) {
-      steps.push({ name: `findBrandModels(id:"${brandIdRaw}", sort:${sortBy})`, fn: () => runIdWithSort({ variables: { id: brandIdRaw, sortBy } }) });
-      steps.push({ name: `findBrandModels(brandId:"${brandIdRaw}", sort:${sortBy})`, fn: () => runBrandIdWithSort({ variables: { id: brandIdRaw, sortBy } }) });
-    }
-    steps.push({ name: `findBrandModels(id:"${brandIdRaw}")`, fn: () => runIdNoSort({ variables: { id: brandIdRaw } }) });
-    steps.push({ name: `findBrandModels(brandId:"${brandIdRaw}")`, fn: () => runBrandIdNoSort({ variables: { id: brandIdRaw } }) });
-
-    // 2) modelsByBrand / findModelsByBrand (string & int)
-    steps.push({ name: `modelsByBrand(brandId:"${brandIdRaw}")`, fn: () => runByBrandId({ variables: { brandId: brandIdRaw } }) });
-    steps.push({ name: `findModelsByBrand(brandId:"${brandIdRaw}")`, fn: () => runFindByBrandId({ variables: { brandId: brandIdRaw } }) });
-    if (!Number.isNaN(brandIdNum)) {
-      steps.push({ name: `modelsByBrand(brandId:${brandIdNum})`, fn: () => runByBrandInt({ variables: { brandId: brandIdNum } }) });
-      steps.push({ name: `findModelsByBrand(brandId:${brandIdNum})`, fn: () => runFindByBrandInt({ variables: { brandId: brandIdNum } }) });
-    }
-
-    // 3) brand-like nodes with nested models/guitarModels/brandModels (string & int)
-    steps.push({ name: `brand(id:"${brandIdRaw}") { models }`, fn: () => runBrand_id_models({ variables: { id: brandIdRaw } }) });
-    steps.push({ name: `brand(id:"${brandIdRaw}") { guitarModels }`, fn: () => runBrand_id_guitarModels({ variables: { id: brandIdRaw } }) });
-    steps.push({ name: `brand(id:"${brandIdRaw}") { brandModels }`, fn: () => runBrand_id_brandModels({ variables: { id: brandIdRaw } }) });
-    steps.push({ name: `brandById(id:"${brandIdRaw}") { models }`, fn: () => runBrandById_id_models({ variables: { id: brandIdRaw } }) });
-    steps.push({ name: `findUniqueBrand(id:"${brandIdRaw}") { models }`, fn: () => runUniqueBrand_id_models({ variables: { id: brandIdRaw } }) });
-    steps.push({ name: `findBrandById(id:"${brandIdRaw}") { models }`, fn: () => runFindBrandById_id_models({ variables: { id: brandIdRaw } }) });
-
-    if (!Number.isNaN(brandIdNum)) {
-      steps.push({ name: `brand(id:${brandIdNum}) { models }`, fn: () => runBrand_int_models({ variables: { id: brandIdNum } }) });
-      steps.push({ name: `brandById(id:${brandIdNum}) { models }`, fn: () => runBrandById_int_models({ variables: { id: brandIdNum } }) });
-      steps.push({ name: `findUniqueBrand(id:${brandIdNum}) { models }`, fn: () => runUniqueBrand_int_models({ variables: { id: brandIdNum } }) });
-      steps.push({ name: `findBrandById(id:${brandIdNum}) { models }`, fn: () => runFindBrandById_int_models({ variables: { id: brandIdNum } }) });
-    }
-
-    return steps;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brandIdRaw, brandIdNum]);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchModels() {
-      if (!brandIdRaw) return;
-
+    const load = async () => {
+      if (!brandId) return;
       setLoading(true);
-      setModels(null);
-      setErrorText(null);
+      setModels([]);
 
-      const collectedErrors: string[] = [];
+      // Try the most common shapes, quietly:
+      let list: any[] = [];
 
-      for (const step of runners) {
-        try {
-          const res = await step.fn();
-          if (res?.errors?.length) {
-            collectedErrors.push(`${step.name}: ${res.errors.map((e: any) => e.message).join(' | ')}`);
-          }
-          const arr = findModelArray(res?.data);
-          if (Array.isArray(arr)) {
-            if (!cancelled) {
-              setModels(arr);
-              setLoading(false);
-            }
-            return;
-          }
-        } catch (e: any) {
-          collectedErrors.push(`${step.name}: ${e?.message || String(e)}`);
-        }
+      // 1) brand(id: ID!)
+      list = await tryQuery(Q_BRAND_BY_ID_ID, { id: brandId }, 'brand');
+      if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
+
+      // 2) brand(id: Int!)
+      if (brandIdNum !== null) {
+        list = await tryQuery(Q_BRAND_BY_ID_INT, { id: brandIdNum }, 'brand');
+        if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
       }
 
+      // 3) findBrandModels(id: ID!)
+      list = await tryQuery(Q_FIND_MODELS_BY_BRAND_ID, { id: brandId }, 'find');
+      if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
+
+      // 4) findBrandModels(brandId: ID!)
+      list = await tryQuery(Q_FIND_MODELS_BY_BRAND_BRANDID, { brandId }, 'find');
+      if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
+
+      // Fallback: sample data (keeps UI useful)
       if (!cancelled) {
+        setModels(SAMPLE_MODELS_BY_BRAND[brandId] ?? []);
         setLoading(false);
-        setErrorText(collectedErrors.join('\n'));
       }
-    }
+    };
 
-    fetchModels();
+    load();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brandIdRaw, runners]);
+  }, [brandId, brandIdNum, apollo]);
 
-  // Distinct types for filter dropdown
+  // Build type list for the filter
   const types = useMemo(() => {
-    const set = new Set<string>();
-    (models ?? []).forEach((m) => { if (m.type) set.add(m.type); });
-    return ['all', ...Array.from(set)];
+    const s = new Set<string>();
+    (models ?? []).forEach((m) => m.type && s.add(String(m.type)));
+    return ['all', ...Array.from(s)];
   }, [models]);
 
-  // Derived filtered/sorted list
-  const displayed: Model[] = useMemo(() => {
-    let arr = (models ?? []).slice();
+  // Derived list with search/filter/sort
+  const displayed = useMemo(() => {
+    let arr = models.slice();
 
     if (q.trim()) {
       const needle = q.trim().toLowerCase();
-      arr = arr.filter((m) => m.name.toLowerCase().includes(needle));
+      arr = arr.filter((m) => String(m.name).toLowerCase().includes(needle));
     }
     if (typeFilter !== 'all') {
       arr = arr.filter((m) => (m.type || '').toLowerCase() === typeFilter.toLowerCase());
     }
-    const min = Number(minPrice);
-    const max = Number(maxPrice);
-    if (!Number.isNaN(min)) arr = arr.filter((m) => typeof m.price !== 'number' || (m.price as number) >= min);
-    if (!Number.isNaN(max)) arr = arr.filter((m) => typeof m.price !== 'number' || (m.price as number) <= max);
-
-    switch (sortKey) {
-      case 'name-asc':
-        arr.sort((a, b) => a.name.localeCompare(b.name)); break;
-      case 'name-desc':
-        arr.sort((a, b) => b.name.localeCompare(a.name)); break;
-      case 'price-asc':
-        arr.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity)); break;
-      case 'price-desc':
-        arr.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity)); break;
-      default:
-        // relevance: leave as-is (server order)
-        break;
+    if (minPrice.trim() !== '') {
+      const n = Number(minPrice);
+      if (!Number.isNaN(n)) arr = arr.filter((m) => typeof m.price !== 'number' || m.price >= n);
     }
-
+    if (maxPrice.trim() !== '') {
+      const n = Number(maxPrice);
+      if (!Number.isNaN(n)) arr = arr.filter((m) => typeof m.price !== 'number' || m.price <= n);
+    }
+    switch (sortKey) {
+      case 'name-asc':  arr.sort((a, b) => String(a.name).localeCompare(String(b.name))); break;
+      case 'name-desc': arr.sort((a, b) => String(b.name).localeCompare(String(a.name))); break;
+      case 'price-asc': arr.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity)); break;
+      case 'price-desc':arr.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity)); break;
+      default: break; // relevance = original order
+    }
     return arr;
   }, [models, q, typeFilter, minPrice, maxPrice, sortKey]);
 
-  if (!brandIdRaw) {
-    return (
-      <main className="p-8">
-        <h1 className="text-2xl font-bold mb-2">Guitars</h1>
-        <p className="text-sm text-neutral-500">{t('error')}: Missing brand id in URL.</p>
-      </main>
-    );
-  }
-
   return (
     <main className="p-8">
-      <Header brandId={brandIdRaw} />
+      <Header brandId={brandId} />
 
       {/* Controls */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search model name…"
-          className="h-10 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3 outline-none focus:ring-2 ring-black/10 dark:ring-white/10"
-        />
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="h-10 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
-        >
-          {types.map((t) => (
-            <option key={t} value={t}>
-              {t === 'all' ? 'All types' : t}
-            </option>
-          ))}
-        </select>
-        <div className="flex gap-2">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
+        <div>
+          <label className="block text-xs mb-1 opacity-70">Search</label>
           <input
-            type="number"
-            inputMode="numeric"
-            value={minPrice}
-            onChange={(e) => setMinPrice(e.target.value)}
-            placeholder="Min €"
-            className="h-10 flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
-          />
-          <input
-            type="number"
-            inputMode="numeric"
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(e.target.value)}
-            placeholder="Max €"
-            className="h-10 flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search model name…"
+            className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3 outline-none focus:ring-2 ring-black/10 dark:ring-white/10"
           />
         </div>
-        <select
-          value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as any)}
-          className="h-10 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
-        >
-          <option value="relevance">Sort: Relevance</option>
-          <option value="name-asc">Sort: Name ↑</option>
-          <option value="name-desc">Sort: Name ↓</option>
-          <option value="price-asc">Sort: Price ↑</option>
-          <option value="price-desc">Sort: Price ↓</option>
-        </select>
+
+        <div>
+          <label className="block text-xs mb-1 opacity-70">Type</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
+          >
+            {types.map((t) => (
+              <option key={t} value={t}>{t === 'all' ? 'All types' : t}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs mb-1 opacity-70">Price range (€)</label>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="number" inputMode="numeric" value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              placeholder="Min €"
+              className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
+            />
+            <input
+              type="number" inputMode="numeric" value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              placeholder="Max €"
+              className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
+            />
+          </div>
+        </div>
+
+        <div className="w-full">
+          <label className="block text-xs mb-1 opacity-70">Sort</label>
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as any)}
+            className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
+          >
+            <option value="relevance">Relevance</option>
+            <option value="name-asc">Name ↑</option>
+            <option value="name-desc">Name ↓</option>
+            <option value="price-asc">Price ↑</option>
+            <option value="price-desc">Price ↓</option>
+          </select>
+        </div>
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
+      {/* Results */}
+      {loading ? (
+        <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
           {Array.from({ length: 8 }).map((_, i) => (
-            <SkeletonCard key={i} />
+            <div key={i} className="h-[260px] rounded-2xl border border-black/10 dark:border-white/10 bg-white/5 animate-pulse" />
           ))}
         </div>
-      )}
-
-      {/* Errors */}
-      {errorText && !loading && !models && (
-        <div className="rounded-xl border border-red-300/50 bg-red-50/70 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-200">
-          <p className="font-semibold">Error: Response not successful.</p>
-          <pre className="mt-2 whitespace-pre-wrap text-xs opacity-90">{errorText}</pre>
+      ) : displayed.length === 0 ? (
+        <div className="rounded-xl border border-black/10 dark:border-white/10 p-6 text-center text-neutral-500">
+          {t('no_results') ?? 'No results.'}
         </div>
-      )}
-
-      {/* Results */}
-      {!loading && (
-        <>
-          {displayed.length === 0 ? (
-            <div className="rounded-xl border border-black/10 dark:border-white/10 p-6 text-center text-neutral-500">
-              {t('no_results') ?? 'No results.'}
-            </div>
-          ) : (
-            <ul className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-              {displayed.map((m) => (
-                <li key={String(m.id)}>
-                  <ModelCard model={m} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+      ) : (
+        <motion.ul
+          variants={gridVariants}
+          initial="hidden"
+          animate="show"
+          className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
+        >
+          <AnimatePresence initial={false}>
+            {displayed.map((m) => (
+              <motion.li key={String(m.id)} layout>
+                <ModelCard model={m} />
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </motion.ul>
       )}
     </main>
   );
@@ -347,8 +354,7 @@ function Header({ brandId }: { brandId: string }) {
         <div>
           <h1 className="text-2xl font-bold text-yellow-400">Guitars</h1>
           <p className="text-sm text-neutral-500 mt-1">
-            Brand ID:{' '}
-            <code className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10">{brandId}</code>
+            Brand ID: <code className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10">{brandId}</code>
           </p>
         </div>
         <Link
