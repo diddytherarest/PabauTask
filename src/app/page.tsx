@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-const { useQuery } = require('@apollo/client');
+import { useQuery } from '@apollo/client';
 import { GET_BRANDS } from './graphql/queries';
 import BrandCard from './components/BrandCard';
 import SkeletonCard from './components/SkeletonCard';
@@ -34,7 +34,8 @@ export default function HomePage() {
     );
   }
 
-  const brands: Brand[] = data?.brands ?? [];
+const brands: Brand[] = data?.findAllBrands ?? [];
+
 
   return (
     <main className="p-8">

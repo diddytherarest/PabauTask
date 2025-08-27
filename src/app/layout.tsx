@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Roboto_Mono } from "next/font/google"; // ← use fonts supported in Next 14
 import "./globals.css";
 import Providers from "./providers";
-import LanguageSwitcher from "./components/LanguageSwitcher"; // ← fixed path
+import LanguageSwitcher from "./components/LanguageSwitcher";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const robotoMono = Roboto_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
@@ -19,18 +19,13 @@ export const metadata: Metadata = {
   description: "Online guitar shop built with Next.js and Apollo Client",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${inter.variable} ${robotoMono.variable} antialiased`}>
         <Providers>
           <div className="min-h-screen grid grid-rows-[1fr_auto]">
             <main>{children}</main>
-
             <footer className="border-t border-black/10 dark:border-white/10 p-4 flex justify-center">
               <LanguageSwitcher />
             </footer>

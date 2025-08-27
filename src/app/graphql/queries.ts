@@ -1,20 +1,17 @@
 import { gql } from '@apollo/client';
 
-/** Page 1 — brands */
 export const GET_BRANDS = gql`
   query GetBrands {
-    brands {
+    findAllBrands {
       id
       name
-      # logoUrl
     }
   }
 `;
 
-/** Page 2 — models by brand */
 export const GET_MODELS_BY_BRAND = gql`
-  query GetModelsByBrand($brandId: ID!) {
-    models(brandId: $brandId) {
+  query GetModelsByBrand($id: ID!, $sortBy: SortBy!) {
+    findBrandModels(id: $id, sortBy: $sortBy) {
       id
       name
       type
@@ -26,13 +23,16 @@ export const GET_MODELS_BY_BRAND = gql`
 
 export const GET_GUITAR_DETAILS = gql`
   query GetGuitarDetails($id: ID!) {
-    guitar(id: $id) {
+    findUniqueModel(id: $id) {
       id
       name
       price
       year
       imageUrl
-      brand { id name }
+      brand {
+        id
+        name
+      }
       specs {
         type
         body

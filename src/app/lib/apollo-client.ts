@@ -8,14 +8,13 @@ const client = new ApolloClient({
     typePolicies: {
       Query: {
         fields: {
-          brands: { merge: false },
-          models: { merge: false },
-          guitar: { merge: false },
+          findAllBrands: { merge: false },
+          findBrandModels: { merge: false },
+          findUniqueModel: { merge: false },
         },
       },
     },
   }),
-
 });
 
 export default client;

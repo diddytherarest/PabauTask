@@ -2,20 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-const { useQuery } = require('@apollo/client');
+import { useQuery } from '@apollo/client';
 import { GET_MODELS_BY_BRAND } from '../../graphql/queries';
 import ModelCard from '../../components/ModelCard';
 import SkeletonCard from '../../components/SkeletonCard';
 import { useI18n } from './../../lib/lang';
 
 type PageProps = { params: { id: string } };
-type Model = {
-  id: string;
-  name: string;
-  type?: string | null;
-  price?: number | null;
-  imageUrl?: string | null;
-};
+type Model = { id: string; name: string; type?: string | null; price?: number | null; imageUrl?: string | null };
 
 export default function BrandModelsPage({ params }: PageProps) {
   const { id } = params;
@@ -23,23 +17,26 @@ export default function BrandModelsPage({ params }: PageProps) {
 
   // UI state
   const [rawSearch, setRawSearch] = useState('');
-  const [search, setSearch] = useState(''); // debounced
+  const [search, setSearch] = useState('');
   const [type, setType] = useState('');
-  const [visibleCount, setVisibleCount] = useState(12); // initial visible
+  const [visibleCount, setVisibleCount] = useState(12);
   const STEP = 8;
 
-  // Debounce search input (250ms)
+  // Debounce search
   useEffect(() => {
     const h = setTimeout(() => setSearch(rawSearch), 250);
     return () => clearTimeout(h);
   }, [rawSearch]);
 
-  // Fetch models for this brand
-  const { data, loading, error } = useQuery(GET_MODELS_BY_BRAND, {
-    variables: { brandId: id },
-  });
+  // Fetch brand + models (brand-scoped)
+ const { data, loading, error } = useQuery(GET_MODELS_BY_BRAND, {
+  variables: {
+    id,                  // brand id
+    sortBy: "NAME_ASC",  // 👈 pick a valid enum value
+  },
+});
 
-  // --- SKELETON LOADER ---
+
   if (loading) {
     return (
       <main className="p-8">
@@ -47,16 +44,12 @@ export default function BrandModelsPage({ params }: PageProps) {
           <h1 className="text-2xl font-bold">{t('models_for_brand')}: {id}</h1>
           <Link href="/" className="underline">← {t('back')}</Link>
         </div>
-
         <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       </main>
     );
   }
-  // --- END SKELETON ---
 
   if (error) {
     return (
@@ -67,37 +60,33 @@ export default function BrandModelsPage({ params }: PageProps) {
     );
   }
 
-  const models: Model[] = data?.models ?? [];
+ const models: Model[] = data?.findBrandModels ?? [];
 
-  // Client-side search + type filter
+const guitar = data?.findUniqueModel ?? null;
+
+
+  
+
   const filtered = useMemo(() => {
     let out = models;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      out = out.filter(m => m.name.toLowerCase().includes(q));
-    }
+    if (search.trim()) out = out.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
     if (type) out = out.filter(m => (m.type || '').toLowerCase() === type.toLowerCase());
     return out;
   }, [models, search, type]);
 
-  // Reset visible when filters change
   useEffect(() => {
     setVisibleCount(12);
   }, [search, type]);
 
-  // Infinite scroll sentinel
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
-    const io = new IntersectionObserver(
-      entries => {
-        if (entries.some(e => e.isIntersecting)) {
-          setVisibleCount(n => Math.min(n + STEP, filtered.length));
-        }
-      },
-      { rootMargin: '800px 0px' }
-    );
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) {
+        setVisibleCount(n => Math.min(n + STEP, filtered.length));
+      }
+    }, { rootMargin: '800px 0px' });
     io.observe(el);
     return () => io.disconnect();
   }, [filtered.length]);
@@ -131,7 +120,6 @@ export default function BrandModelsPage({ params }: PageProps) {
         </select>
       </div>
 
-      {/* Grid */}
       {filtered.length === 0 && <p>{t('no_models')}</p>}
       <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
         {pageItems.map((m) => (
@@ -141,12 +129,8 @@ export default function BrandModelsPage({ params }: PageProps) {
         ))}
       </div>
 
-      {/* Sentinel for infinite scroll */}
       {visibleCount < filtered.length && (
-        <div
-          ref={sentinelRef}
-          className="h-10 flex items-center justify-center text-sm text-zinc-500 mt-6"
-        >
+        <div ref={sentinelRef} className="h-10 flex items-center justify-center text-sm text-zinc-500 mt-6">
           loading more…
         </div>
       )}
