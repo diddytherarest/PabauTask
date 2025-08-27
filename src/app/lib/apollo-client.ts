@@ -1,41 +1,22 @@
-// src/lib/apollo-client.ts
-import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
-import { onError } from '@apollo/client/link/error';
+// src/app/lib/apollo-client.ts
+import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
 
-// Read endpoint from env (falls back to localhost)
-const GRAPHQL_URI =
-  (process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || '').trim() ||
-  'http://localhost:8080/graphql';
-
-// Helpful console log so you can confirm what the app is using
-if (typeof window !== 'undefined') {
-  // eslint-disable-next-line no-console
-  console.log('[Apollo] Using GraphQL endpoint:', GRAPHQL_URI);
-}
-
-const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
-  if (graphQLErrors?.length) {
-    
-    console.warn(
-      `[GraphQL errors] ${operation.operationName || 'anonymous'}:`,
-      graphQLErrors.map((e) => e.message)
-    );
-  }
-  if (networkError) {
-    
-    console.warn('[Network error]', networkError);
-  }
-});
+const endpoint =
+  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ?? 'http://localhost:4000/graphql';
 
 const httpLink = new HttpLink({
-  uri: GRAPHQL_URI,
- 
-  fetchOptions: {
-    mode: 'cors',
-  },
+  uri: endpoint,
+  // On Next.js, the global fetch is available
+  fetch,
 });
 
-export const apolloClient = new ApolloClient({
-  link: from([errorLink, httpLink]),
+const apolloClient = new ApolloClient({
+  link: httpLink,
   cache: new InMemoryCache(),
+  // We’re on the client (app router “use client”), so no SSR
+  ssrMode: false,
+  connectToDevTools: process.env.NODE_ENV !== 'production',
 });
+
+export default apolloClient;          // <-- default export
+export { apolloClient };             // (optional) named export too

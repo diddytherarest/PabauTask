@@ -1,3 +1,4 @@
+// src/app/brands/[id]/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -8,9 +9,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useI18n } from '../../lib/lang';
 import ModelCard from '../../components/ModelCard';
 
-/* ─────────────── Inline queries (no external imports) ─────────────── */
+type Model = {
+  id: string;
+  name: string;
+  type?: string | null;
+  price?: number | null;
+  imageUrl?: string | null;
+  year?: number | null;
+  description?: string | null;
+};
 
-/** brand(id: ID!) { models } */
 const Q_BRAND_BY_ID_ID = gql`
   query BrandModelsById_ID($id: ID!) {
     brand(id: $id) {
@@ -29,7 +37,6 @@ const Q_BRAND_BY_ID_ID = gql`
   }
 `;
 
-/** brand(id: Int!) { models } – some schemas use Int for id */
 const Q_BRAND_BY_ID_INT = gql`
   query BrandModelsById_INT($id: Int!) {
     brand(id: $id) {
@@ -48,7 +55,6 @@ const Q_BRAND_BY_ID_INT = gql`
   }
 `;
 
-/** findBrandModels(id: ID!) – fallback in case models are returned as a top-level list */
 const Q_FIND_MODELS_BY_BRAND_ID = gql`
   query FindModelsByBrand_ID($id: ID!) {
     findBrandModels(id: $id) {
@@ -63,7 +69,6 @@ const Q_FIND_MODELS_BY_BRAND_ID = gql`
   }
 `;
 
-/** findBrandModels(brandId: ID!) – another common variant */
 const Q_FIND_MODELS_BY_BRAND_BRANDID = gql`
   query FindModelsByBrand_BRANDID($brandId: ID!) {
     findBrandModels(brandId: $brandId) {
@@ -78,41 +83,11 @@ const Q_FIND_MODELS_BY_BRAND_BRANDID = gql`
   }
 `;
 
-/* ─────────────── Types & helpers ─────────────── */
-
-type Model = {
-  id: string;
-  name: string;
-  type?: string | null;
-  price?: number | null;
-  imageUrl?: string | null;
-  year?: number | null;
-  description?: string | null;
-};
-
-const SAMPLE_MODELS_BY_BRAND: Record<string, Model[]> = {
-  '1': [
-    { id: 'f-tele', name: 'Telecaster', type: 'Electric', price: 1199, year: 1951, imageUrl: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=1200&auto=format&fit=crop' },
-    { id: 'f-strat', name: 'Stratocaster', type: 'Electric', price: 1299, year: 1954, imageUrl: 'https://images.unsplash.com/photo-1483412033650-1015ddeb83d1?q=80&w=1200&auto=format&fit=crop' },
-    { id: 'f-jbass', name: 'Jazz Bass', type: 'Bass', price: 999, year: 1960, imageUrl: 'https://images.unsplash.com/photo-1507878866276-a947ef722fee?q=80&w=1200&auto=format&fit=crop' },
-  ],
-  '2': [
-    { id: 'g-lespaul', name: 'Les Paul Standard', type: 'Electric', price: 2499, year: 1958, imageUrl: 'https://images.unsplash.com/photo-1497534446932-c925b458314e?q=80&w=1200&auto=format&fit=crop' },
-    { id: 'g-sgstd', name: 'SG Standard', type: 'Electric', price: 1699, year: 1961, imageUrl: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=1200&auto=format&fit=crop' },
-    { id: 'g-es335', name: 'ES-335', type: 'Semi-Hollow', price: 2999, year: 1958, imageUrl: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=1200&auto=format&fit=crop' },
-  ],
-  '3': [
-    { id: 'ib-rg', name: 'RG Prestige', type: 'Electric', price: 1399, year: 1987, imageUrl: 'https://images.unsplash.com/photo-1524578271613-de039ec3f506?q=80&w=1200&auto=format&fit=crop' },
-    { id: 'ib-sr', name: 'SR Bass', type: 'Bass', price: 899, year: 1987, imageUrl: 'https://images.unsplash.com/photo-1510920018318-3b4dfe979e7a?q=80&w=1200&auto=format&fit=crop' },
-  ],
-};
-
 const gridVariants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
 };
 
-/** Normalize any model-like object into our UI shape */
 function coerceModels(arr: any[]): Model[] {
   const out: Model[] = [];
   for (let i = 0; i < arr.length; i++) {
@@ -133,14 +108,12 @@ function coerceModels(arr: any[]): Model[] {
       (typeof raw.year === 'number' ? raw.year : undefined) ??
       (typeof raw.modelYear === 'number' ? raw.modelYear : undefined) ??
       null;
-
     const description = raw.description ?? raw.summary ?? null;
+
     out.push({ id, name, type, price, imageUrl, year, description });
   }
   return out;
 }
-
-/* ─────────────── Page ─────────────── */
 
 export default function BrandModelsPage() {
   const { t } = useI18n();
@@ -162,7 +135,6 @@ export default function BrandModelsPage() {
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(false);
 
-  /** Silent runner: try a query and return an array if it works */
   const tryQuery = async (query: any, vars: Record<string, unknown>, pick: 'brand' | 'find') => {
     try {
       const res = await apollo.query({ query, variables: vars, fetchPolicy: 'no-cache' });
@@ -173,7 +145,7 @@ export default function BrandModelsPage() {
       const arr = res?.data?.findBrandModels ?? [];
       return Array.isArray(arr) ? arr : [];
     } catch {
-      return []; // no noise, just return empty and let the next attempt run
+      return [];
     }
   };
 
@@ -185,46 +157,36 @@ export default function BrandModelsPage() {
       setLoading(true);
       setModels([]);
 
-      // Try the most common shapes, quietly:
       let list: any[] = [];
 
-      // 1) brand(id: ID!)
       list = await tryQuery(Q_BRAND_BY_ID_ID, { id: brandId }, 'brand');
       if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
 
-      // 2) brand(id: Int!)
       if (brandIdNum !== null) {
         list = await tryQuery(Q_BRAND_BY_ID_INT, { id: brandIdNum }, 'brand');
         if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
       }
 
-      // 3) findBrandModels(id: ID!)
       list = await tryQuery(Q_FIND_MODELS_BY_BRAND_ID, { id: brandId }, 'find');
       if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
 
-      // 4) findBrandModels(brandId: ID!)
       list = await tryQuery(Q_FIND_MODELS_BY_BRAND_BRANDID, { brandId }, 'find');
       if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
 
-      // Fallback: sample data (keeps UI useful)
-      if (!cancelled) {
-        setModels(SAMPLE_MODELS_BY_BRAND[brandId] ?? []);
-        setLoading(false);
-      }
+      // Fallback: empty (you can inject sample data if you prefer)
+      if (!cancelled) setLoading(false);
     };
 
     load();
     return () => { cancelled = true; };
   }, [brandId, brandIdNum, apollo]);
 
-  // Build type list for the filter
   const types = useMemo(() => {
     const s = new Set<string>();
     (models ?? []).forEach((m) => m.type && s.add(String(m.type)));
     return ['all', ...Array.from(s)];
   }, [models]);
 
-  // Derived list with search/filter/sort
   const displayed = useMemo(() => {
     let arr = models.slice();
 
@@ -248,70 +210,85 @@ export default function BrandModelsPage() {
       case 'name-desc': arr.sort((a, b) => String(b.name).localeCompare(String(a.name))); break;
       case 'price-asc': arr.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity)); break;
       case 'price-desc':arr.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity)); break;
-      default: break; // relevance = original order
+      default: break;
     }
     return arr;
   }, [models, q, typeFilter, minPrice, maxPrice, sortKey]);
 
   return (
     <main className="p-8">
-      <Header brandId={brandId} />
+      <div className="mb-6">
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-yellow-400">{t('guitars')}</h1>
+            <p className="text-sm text-neutral-500 mt-1">
+              {t('brand_id')}: <code className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10">{brandId}</code>
+            </p>
+          </div>
+          <Link
+            href="/"
+            className="text-sm rounded-xl border border-black/10 dark:border-white/10 px-3 py-1.5 bg-white/60 dark:bg-white/5 backdrop-blur hover:border-black/20 hover:dark:border-white/20"
+          >
+            ← {t('all_brands')}
+          </Link>
+        </div>
+      </div>
 
       {/* Controls */}
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
         <div>
-          <label className="block text-xs mb-1 opacity-70">Search</label>
+          <label className="block text-xs mb-1 opacity-70">{t('search')}</label>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search model name…"
+            placeholder={`${t('search')} model name…`}
             className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3 outline-none focus:ring-2 ring-black/10 dark:ring-white/10"
           />
         </div>
 
         <div>
-          <label className="block text-xs mb-1 opacity-70">Type</label>
+          <label className="block text-xs mb-1 opacity-70">{t('type')}</label>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
           >
-            {types.map((t) => (
-              <option key={t} value={t}>{t === 'all' ? 'All types' : t}</option>
+            {types.map((tt) => (
+              <option key={tt} value={tt}>{tt === 'all' ? t('all_types') : tt}</option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="block text-xs mb-1 opacity-70">Price range (€)</label>
+          <label className="block text-xs mb-1 opacity-70">{t('price_range_eur')}</label>
           <div className="grid grid-cols-2 gap-2">
             <input
               type="number" inputMode="numeric" value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
-              placeholder="Min €"
+              placeholder={t('min_eur')}
               className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
             />
             <input
               type="number" inputMode="numeric" value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
-              placeholder="Max €"
+              placeholder={t('max_eur')}
               className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
             />
           </div>
         </div>
 
         <div className="w-full">
-          <label className="block text-xs mb-1 opacity-70">Sort</label>
+          <label className="block text-xs mb-1 opacity-70">{t('sort')}</label>
           <select
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as any)}
             className="h-10 w-full rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3"
           >
-            <option value="relevance">Relevance</option>
-            <option value="name-asc">Name ↑</option>
-            <option value="name-desc">Name ↓</option>
-            <option value="price-asc">Price ↑</option>
-            <option value="price-desc">Price ↓</option>
+            <option value="relevance">{t('relevance')}</option>
+            <option value="name-asc">{t('name_asc')}</option>
+            <option value="name-desc">{t('name_desc')}</option>
+            <option value="price-asc">{t('price_asc')}</option>
+            <option value="price-desc">{t('price_desc')}</option>
           </select>
         </div>
       </div>
@@ -325,7 +302,7 @@ export default function BrandModelsPage() {
         </div>
       ) : displayed.length === 0 ? (
         <div className="rounded-xl border border-black/10 dark:border-white/10 p-6 text-center text-neutral-500">
-          {t('no_results') ?? 'No results.'}
+          {t('no_results')}
         </div>
       ) : (
         <motion.ul
@@ -344,26 +321,5 @@ export default function BrandModelsPage() {
         </motion.ul>
       )}
     </main>
-  );
-}
-
-function Header({ brandId }: { brandId: string }) {
-  return (
-    <div className="mb-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-yellow-400">Guitars</h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Brand ID: <code className="px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10">{brandId}</code>
-          </p>
-        </div>
-        <Link
-          href="/"
-          className="text-sm rounded-xl border border-black/10 dark:border-white/10 px-3 py-1.5 bg-white/60 dark:bg-white/5 backdrop-blur hover:border-black/20 hover:dark:border-white/20"
-        >
-          ← All brands
-        </Link>
-      </div>
-    </div>
   );
 }
