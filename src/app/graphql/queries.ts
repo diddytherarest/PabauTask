@@ -9,9 +9,22 @@ export const GET_BRANDS = gql`
   }
 `;
 
-export const GET_MODELS_BY_BRAND = gql`
-  query GetModelsByBrand($id: ID!, $sortBy: SortBy!) {
-    findBrandModels(id: $id, sortBy: $sortBy) {
+
+export const GET_MODELS_BY_BRAND_ID = gql`
+  query GetModelsByBrand_ID($id: ID!) {
+    findBrandModels(id: $id) {
+      id
+      name
+      type
+      price
+      imageUrl
+    }
+  }
+`;
+
+export const GET_MODELS_BY_BRAND_BRANDID = gql`
+  query GetModelsByBrand_BRANDID($id: ID!) {
+    findBrandModels(brandId: $id) {
       id
       name
       type

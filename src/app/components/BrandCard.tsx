@@ -9,8 +9,7 @@ type Brand = {
 export default function BrandCard({ brand }: { brand: Brand }) {
   return (
     <article
-      className="rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-zinc-900 p-4 transition
-                 hover:shadow-md focus-within:ring-2 focus-within:ring-indigo-500"
+      className="brand-card p-4 transition focus-within:ring-2 focus-within:ring-indigo-500"
       aria-label={brand.name}
       tabIndex={-1}
     >
