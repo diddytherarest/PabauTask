@@ -1,54 +1,77 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@apollo/client';
-import { GET_BRANDS } from './graphql/queries';
-import BrandCard from './components/BrandCard';
-import SkeletonCard from './components/SkeletonCard';
+import { useQuery, gql } from '@apollo/client';
 import { useI18n } from './lib/lang';
+import BrandCard from './components/BrandCard';
 
-type Brand = { id: string; name: string; logoUrl?: string | null };
+const GET_BRANDS = gql`
+  query GetBrands {
+    findAllBrands {
+      id
+      name
+    }
+  }
+`;
 
 export default function HomePage() {
   const { t } = useI18n();
-  const { data, loading, error } = useQuery(GET_BRANDS);
+  const { data, loading, error, refetch } = useQuery(GET_BRANDS, {
+    fetchPolicy: 'no-cache',
+  });
 
-  if (loading) {
-    return (
-      <main className="p-8">
-        <h1 className="text-2xl font-bold mb-6">{t('guitar_brands')}</h1>
-        <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="p-8 text-red-600">
-        {t('error')}: {error.message}
-      </main>
-    );
-  }
-
-const brands: Brand[] = data?.findAllBrands ?? [];
-
+  // Dev: log endpoint and result for quick debugging
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[Home] env NEXT_PUBLIC_GRAPHQL_ENDPOINT =', process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT);
+    // eslint-disable-next-line no-console
+    console.log('[Home] query status', { loading, error, data });
+  }, [loading, error, data]);
 
   return (
     <main className="p-8">
-      <h1 className="text-2xl font-bold mb-6">{t('guitar_brands')}</h1>
-      {brands.length === 0 && <p>{t('no_brands')}</p>}
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold">{t('guitar_brands') ?? 'Guitar Brands'}</h1>
+      </header>
 
-      <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
-        {brands.map((b) => (
-          <Link key={b.id} href={`/brands/${b.id}`} className="no-underline">
-            <BrandCard brand={b} />
-          </Link>
-        ))}
-      </div>
+      {loading && <p className="text-sm text-neutral-500">{t('loading') ?? 'Loading…'}</p>}
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-300/50 bg-red-50 dark:bg-red-950/20 p-4">
+          <p className="text-red-700 dark:text-red-200 font-semibold">Error: {error.message}</p>
+          <p className="text-sm mt-2 text-red-700 dark:text-red-200">Most common reasons:</p>
+          <ul className="text-sm mt-1 list-disc ml-5 text-red-700 dark:text-red-200">
+            <li>GraphQL server not running / wrong URL</li>
+            <li>CORS not allowing <code>http://localhost:3000</code></li>
+            <li>HTTPS certificate not trusted (if using <code>https://localhost</code>)</li>
+          </ul>
+          <button
+            onClick={() => refetch()}
+            className="mt-3 inline-flex items-center rounded-md border px-3 py-1 text-sm"
+          >
+            Retry
+          </button>
+          <div className="mt-3 text-xs opacity-70">
+            Endpoint:{' '}
+            <code>{process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:8080/graphql'}</code>
+          </div>
+        </div>
+      )}
+
+      {data?.findAllBrands?.length ? (
+        <ul className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+          {data.findAllBrands.map((b: { id: string; name: string }) => (
+            <li key={b.id}>
+              <Link href={`/brands/${b.id}`} className="no-underline">
+                <BrandCard brand={b} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : !loading && !error ? (
+        <p className="text-neutral-500">{t('no_results') ?? 'No brands found.'}</p>
+      ) : null}
     </main>
   );
 }

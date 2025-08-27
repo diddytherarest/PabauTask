@@ -1,116 +1,58 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 
-type Lang = 'en' | 'mk' | 'sq';
+type Lang = 'en' | 'de' | 'sq' | 'mk';
 
 type Dict = Record<string, string>;
-type I18nDict = Record<Lang, Dict>;
+type Dictionaries = Record<Lang, Dict>;
 
-const DICT: I18nDict = {
+const dictionaries: Dictionaries = {
   en: {
     guitar_brands: 'Guitar Brands',
-    loading_brands: 'Loading brands…',
-    loading_models: 'Loading models…',
-    loading_guitar: 'Loading guitar…',
+    loading: 'Loading…',
+    no_results: 'No results.',
     error: 'Error',
-    no_brands: 'No brands found.',
-    no_models: 'No models found.',
-    no_specs: 'No specs available.',
-    no_musicians: 'No musicians listed for this guitar.',
-    models_for_brand: 'Models for Brand',
-    back: 'Back',
-    back_to_brands: 'Back to brands',
-    search_models: 'Search models…',
-    all_types: 'All types',
-    acoustic: 'Acoustic',
-    electric: 'Electric',
-    bass: 'Bass',
-    specs: 'Specs',
-    musicians: 'Musicians',
-    price: 'Price',
-    year: 'Year',
-    brand: 'Brand',
-    show_2_more: 'Show 2 more',
+    language: 'Language',
   },
-  mk: {
-    guitar_brands: 'Гитарски брендови',
-    loading_brands: 'Се вчитуваат брендови…',
-    loading_models: 'Се вчитуваат модели…',
-    loading_guitar: 'Се вчитува гитара…',
-    error: 'Грешка',
-    no_brands: 'Нема пронајдени брендови.',
-    no_models: 'Нема пронајдени модели.',
-    no_specs: 'Нема спецификации.',
-    no_musicians: 'Нема музичари за оваа гитара.',
-    models_for_brand: 'Модели за бренд',
-    back: 'Назад',
-    back_to_brands: 'Назад кон брендовите',
-    search_models: 'Пребарај модели…',
-    all_types: 'Сите типови',
-    acoustic: 'Акустична',
-    electric: 'Електрична',
-    bass: 'Бас',
-    specs: 'Спецификации',
-    musicians: 'Музичари',
-    price: 'Цена',
-    year: 'Година',
-    brand: 'Бренд',
-    show_2_more: 'Прикажи уште 2',
+  de: {
+    guitar_brands: 'Gitarrenmarken',
+    loading: 'Laden…',
+    no_results: 'Keine Ergebnisse.',
+    error: 'Fehler',
+    language: 'Sprache',
   },
   sq: {
-    guitar_brands: 'Markat e kitarave',
-    loading_brands: 'Duke ngarkuar markat…',
-    loading_models: 'Duke ngarkuar modelet…',
-    loading_guitar: 'Duke ngarkuar kitarën…',
+    guitar_brands: 'Markat e Kitarave',
+    loading: 'Duke u ngarkuar…',
+    no_results: 'Nuk ka rezultate.',
     error: 'Gabim',
-    no_brands: 'Nuk u gjetën marka.',
-    no_models: 'Nuk u gjetën modele.',
-    no_specs: 'Nuk ka specifikime.',
-    no_musicians: 'Nuk ka muzikantë për këtë kitarë.',
-    models_for_brand: 'Modele për markën',
-    back: 'Kthehu',
-    back_to_brands: 'Kthehu te markat',
-    search_models: 'Kërko modele…',
-    all_types: 'Të gjitha llojet',
-    acoustic: 'Akustike',
-    electric: 'Elektrike',
-    bass: 'Bas',
-    specs: 'Specifikime',
-    musicians: 'Muzikantë',
-    price: 'Çmimi',
-    year: 'Viti',
-    brand: 'Marka',
-    show_2_more: 'Shfaq edhe 2',
+    language: 'Gjuha',
+  },
+  mk: {
+    guitar_brands: 'Гитарски Брендови',
+    loading: 'Се вчитува…',
+    no_results: 'Нема резултати.',
+    error: 'Грешка',
+    language: 'Јазик',
   },
 };
 
-type LangCtx = {
+type LangContextValue = {
   lang: Lang;
   setLang: (l: Lang) => void;
-  t: (key: keyof Dict) => string;
+  t: (key: keyof typeof dictionaries['en']) => string;
 };
 
-const LangContext = createContext<LangCtx | null>(null);
+const LangContext = createContext<LangContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  // default to English; you can hydrate from localStorage if you want
   const [lang, setLang] = useState<Lang>('en');
 
-  // Load saved language on mount
-  useEffect(() => {
-    const saved = window.localStorage.getItem('lang');
-    if (saved === 'en' || saved === 'mk' || saved === 'sq') {
-      setLang(saved as Lang);
-    }
-  }, []);
-
-  // Save to localStorage when it changes
-  useEffect(() => {
-    window.localStorage.setItem('lang', lang);
-  }, [lang]);
-
-  const value = useMemo<LangCtx>(() => {
-    const t = (key: string) => DICT[lang][key] ?? key;
+  const value = useMemo<LangContextValue>(() => {
+    const dict = dictionaries[lang] ?? dictionaries.en;
+    const t = (key: keyof typeof dictionaries['en']) => dict[key] ?? String(key);
     return { lang, setLang, t };
   }, [lang]);
 

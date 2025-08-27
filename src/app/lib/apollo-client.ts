@@ -1,36 +1,41 @@
-import { ApolloClient, InMemoryCache, HttpLink, from } from "@apollo/client";
-import { onError } from "@apollo/client/link/error";
+// src/lib/apollo-client.ts
+import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
+import { onError } from '@apollo/client/link/error';
+
+// Read endpoint from env (falls back to localhost)
+const GRAPHQL_URI =
+  (process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || '').trim() ||
+  'http://localhost:8080/graphql';
+
+// Helpful console log so you can confirm what the app is using
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line no-console
+  console.log('[Apollo] Using GraphQL endpoint:', GRAPHQL_URI);
+}
 
 const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
-  if (graphQLErrors) {
-    console.error(
-      "[GraphQL errors]",
-      graphQLErrors.map(e => ({ message: e.message, path: e.path, extensions: e.extensions }))
+  if (graphQLErrors?.length) {
+    
+    console.warn(
+      `[GraphQL errors] ${operation.operationName || 'anonymous'}:`,
+      graphQLErrors.map((e) => e.message)
     );
   }
   if (networkError) {
-    console.error("[Network error]", networkError, "on operation", operation.operationName);
+    
+    console.warn('[Network error]', networkError);
   }
 });
 
 const httpLink = new HttpLink({
-  uri: "https://graphql-api-brown.vercel.app/api/graphql",
+  uri: GRAPHQL_URI,
+ 
+  fetchOptions: {
+    mode: 'cors',
+  },
 });
 
-const client = new ApolloClient({
+export const apolloClient = new ApolloClient({
   link: from([errorLink, httpLink]),
-  cache: new InMemoryCache({
-    typePolicies: {
-      Query: {
-        fields: {
-          findAllBrands: { merge: false },
-          findBrandModels: { merge: false },
-          findUniqueModel: { merge: false },
-        },
-      },
-    },
-  }),
-  connectToDevTools: process.env.NODE_ENV === "development",
+  cache: new InMemoryCache(),
 });
-
-export default client;
