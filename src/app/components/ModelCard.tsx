@@ -2,8 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import type { Variants } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import { useState } from 'react';
 
 export type Model = {
@@ -50,7 +49,7 @@ const cardVariants: Variants = {
 export default function ModelCard(props: ModelCardProps) {
   const { model, selected, onSelectChange } = props;
 
-  // Uncontrolled fallback state when parent doesn't control selection
+  // Uncontrolled fallback for selection
   const [internalSelected, setInternalSelected] = useState(false);
   const isSelected = selected ?? internalSelected;
 
@@ -72,7 +71,7 @@ export default function ModelCard(props: ModelCardProps) {
         isSelected ? 'ring-2 ring-yellow-400 shadow-md' : 'hover:shadow-md',
       ].join(' ')}
     >
-      {/* Selection toggle (does not navigate) */}
+      {/* Selection toggle (prevents navigation) */}
       <button
         type="button"
         onClick={(e) => {
@@ -91,8 +90,7 @@ export default function ModelCard(props: ModelCardProps) {
         ].join(' ')}
       >
         {isSelected ? (
-          // Check icon
-          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
             <path
               fillRule="evenodd"
               d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414l2.293 2.293 6.543-6.543a1 1 0 011.414 0z"
@@ -100,15 +98,14 @@ export default function ModelCard(props: ModelCardProps) {
             />
           </svg>
         ) : (
-          // Plus icon
-          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
             <path d="M9 4a1 1 0 112 0v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4z" />
           </svg>
         )}
       </button>
 
-      {/* Clickable content (navigates to model details) */}
-      <Link href={href} className="block">
+      {/* Clickable content */}
+      <Link href={href} className="block" aria-label={`Open ${model.name}`}>
         {/* Image */}
         <div className="aspect-[16/10] overflow-hidden bg-black/5">
           <motion.img
@@ -144,10 +141,15 @@ export default function ModelCard(props: ModelCardProps) {
         </div>
       </Link>
 
-      {/* Soft edge highlight on hover / selected */}
+      {/* Soft highlight */}
       <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300">
         <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-yellow-400/10 via-transparent to-transparent blur-2xl" />
-        <div className={['absolute inset-0 rounded-2xl', isSelected ? 'ring-1 ring-yellow-400/40' : 'ring-1 ring-black/10'].join(' ')} />
+        <div
+          className={[
+            'absolute inset-0 rounded-2xl',
+            isSelected ? 'ring-1 ring-yellow-400/40' : 'ring-1 ring-black/10',
+          ].join(' ')}
+        />
       </div>
     </motion.article>
   );

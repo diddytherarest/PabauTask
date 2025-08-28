@@ -5,36 +5,16 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { gql, useApolloClient } from '@apollo/client';
-import { motion, AnimatePresence } from 'framer-motion';
-
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useI18n } from '../../lib/lang';
-import ModelCard from '../../components/ModelCard';
-import { SkeletonGrid } from '../../components/SkeletonCard';
-
-type Model = {
-  id: string;
-  name: string;
-  type?: string | null;
-  price?: number | null;
-  imageUrl?: string | null;
-  year?: number | null;
-  description?: string | null;
-};
+import ModelCard, { type Model } from '../../components/ModelCard';
 
 const Q_BRAND_BY_ID_ID = gql`
   query BrandModelsById_ID($id: ID!) {
     brand(id: $id) {
       id
       name
-      models {
-        id
-        name
-        type
-        price
-        imageUrl
-        year
-        description
-      }
+      models { id name type price imageUrl year description }
     }
   }
 `;
@@ -44,15 +24,7 @@ const Q_BRAND_BY_ID_INT = gql`
     brand(id: $id) {
       id
       name
-      models {
-        id
-        name
-        type
-        price
-        imageUrl
-        year
-        description
-      }
+      models { id name type price imageUrl year description }
     }
   }
 `;
@@ -60,13 +32,7 @@ const Q_BRAND_BY_ID_INT = gql`
 const Q_FIND_MODELS_BY_BRAND_ID = gql`
   query FindModelsByBrand_ID($id: ID!) {
     findBrandModels(id: $id) {
-      id
-      name
-      type
-      price
-      imageUrl
-      year
-      description
+      id name type price imageUrl year description
     }
   }
 `;
@@ -74,22 +40,18 @@ const Q_FIND_MODELS_BY_BRAND_ID = gql`
 const Q_FIND_MODELS_BY_BRAND_BRANDID = gql`
   query FindModelsByBrand_BRANDID($brandId: ID!) {
     findBrandModels(brandId: $brandId) {
-      id
-      name
-      type
-      price
-      imageUrl
-      year
-      description
+      id name type price imageUrl year description
     }
   }
 `;
 
-const gridVariants = {
+/** Animation for the grid */
+const gridVariants: Variants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
 };
 
+/** Local helper to normalize any API shape into Model[] */
 function coerceModels(arr: any[]): Model[] {
   const out: Model[] = [];
   for (let i = 0; i < arr.length; i++) {
@@ -116,6 +78,63 @@ function coerceModels(arr: any[]): Model[] {
   }
   return out;
 }
+
+/** Fallback models by brand (IDs 1–10 match your brands page order) */
+const FALLBACK: Record<string, Model[]> = {
+  // 1: Fender
+  '1': [
+    { id: 'fen-strat', name: 'Stratocaster', type: 'Electric', price: 1299, year: 1954, imageUrl: '/Fender.jpg', description: 'Classic double-cut versatility.' },
+    { id: 'fen-tele',  name: 'Telecaster',   type: 'Electric', price: 1199, year: 1951, imageUrl: '/Fender.jpg', description: 'Twangy single-cut icon.' },
+    { id: 'fen-jazz',  name: 'Jazzmaster',   type: 'Electric', price: 1399, year: 1958, imageUrl: '/Fender.jpg', description: 'Offset vibes for indie & surf.' },
+  ],
+  // 2: Ibanez
+  '2': [
+    { id: 'ibz-rg',   name: 'RG',       type: 'Electric', price: 999, year: 1987, imageUrl: '/Ibanez.jpg', description: 'Fast necks, modern tones.' },
+    { id: 'ibz-s',    name: 'S Series', type: 'Electric', price: 899, year: 1987, imageUrl: '/Ibanez.jpg', description: 'Sleek, lightweight shredder.' },
+    { id: 'ibz-az',   name: 'AZ',       type: 'Electric', price: 1299, year: 2018, imageUrl: '/Ibanez.jpg', description: 'Versatile boutique-style player.' },
+  ],
+  // 3: Gibson
+  '3': [
+    { id: 'gib-lp', name: 'Les Paul', type: 'Electric', price: 2499, year: 1952, imageUrl: '/Gibson.jpg', description: 'Thick, sustaining humbuckers.' },
+    { id: 'gib-sg', name: 'SG',       type: 'Electric', price: 1699, year: 1961, imageUrl: '/Gibson.jpg', description: 'Lightweight rock machine.' },
+    { id: 'gib-335',name: 'ES-335',   type: 'Semi-Hollow', price: 2899, year: 1958, imageUrl: '/Gibson.jpg', description: 'Iconic semi-hollow warmth.' },
+  ],
+  // 4: PRS
+  '4': [
+    { id: 'prs-c24', name: 'Custom 24', type: 'Electric', price: 3599, year: 1985, imageUrl: '/PRS.jpg', description: 'Flagship PRS versatility.' },
+    { id: 'prs-se',  name: 'SE Standard', type: 'Electric', price: 799, year: 2001, imageUrl: '/PRS.jpg', description: 'Great value, great feel.' },
+  ],
+  // 5: Martin
+  '5': [
+    { id: 'mtn-d28',  name: 'D-28',   type: 'Acoustic', price: 2999, year: 1931, imageUrl: '/Martin.jpg', description: 'Benchmark dreadnought bass & boom.' },
+    { id: 'mtn-00015',name: '000-15M',type: 'Acoustic', price: 1499, year: 2009, imageUrl: '/Martin.jpg', description: 'All-mahogany, warm & woody.' },
+  ],
+  // 6: Yamaha
+  '6': [
+    { id: 'ymh-pac', name: 'Pacifica', type: 'Electric', price: 399, year: 1990, imageUrl: '/Yamaha.jpg', description: 'Beginner-friendly and versatile.' },
+    { id: 'ymh-rv',  name: 'Revstar',  type: 'Electric', price: 699, year: 2015, imageUrl: '/Yamaha.jpg', description: 'Modern single-cut punch.' },
+  ],
+  // 7: Gretsch
+  '7': [
+    { id: 'grt-duo', name: 'Duo Jet',     type: 'Electric', price: 1799, year: 1953, imageUrl: '/Gretsch.jpg', description: 'Snappy Filter’Tron bite.' },
+    { id: 'grt-falc',name: 'White Falcon',type: 'Hollow',   price: 3499, year: 1954, imageUrl: '/Gretsch.jpg', description: 'Big body, big shimmer.' },
+  ],
+  // 8: Epiphone
+  '8': [
+    { id: 'epi-lps', name: 'Les Paul Standard', type: 'Electric', price: 599, year: 1990, imageUrl: '/Epiphone.jpg', description: 'Classic look, friendly price.' },
+    { id: 'epi-csn', name: 'Casino',            type: 'Hollow',   price: 699, year: 1961, imageUrl: '/Epiphone.jpg', description: 'Beatles-approved hollow sparkle.' },
+  ],
+  // 9: Jackson
+  '9': [
+    { id: 'jck-solo', name: 'Soloist', type: 'Electric', price: 1299, year: 1984, imageUrl: '/Jackson.jpg', description: 'Neck-through shred king.' },
+    { id: 'jck-rho',  name: 'Rhoads',  type: 'Electric', price: 1399, year: 1981, imageUrl: '/Jackson.jpg', description: 'Pointy icon with bite.' },
+  ],
+  // 10: Music Man
+  '10': [
+    { id: 'mm-sting', name: 'StingRay Guitar', type: 'Electric', price: 2499, year: 2016, imageUrl: '/MusicMan.jpg', description: 'Punchy, modern clarity.' },
+    { id: 'mm-axis',  name: 'Axis',            type: 'Electric', price: 2799, year: 1991, imageUrl: '/MusicMan.jpg', description: 'Hot-rodded rock machine.' },
+  ],
+};
 
 export default function BrandModelsPage() {
   const { t } = useI18n();
@@ -159,6 +178,7 @@ export default function BrandModelsPage() {
       setLoading(true);
       setModels([]);
 
+      // 1) Try every known API shape
       let list: any[] = [];
 
       list = await tryQuery(Q_BRAND_BY_ID_ID, { id: brandId }, 'brand');
@@ -175,19 +195,26 @@ export default function BrandModelsPage() {
       list = await tryQuery(Q_FIND_MODELS_BY_BRAND_BRANDID, { brandId }, 'find');
       if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
 
-      if (!cancelled) setLoading(false);
+      // 2) Fallback sample data so the grid is filled with real-looking models
+      if (!cancelled) {
+        const sample = FALLBACK[brandId] ?? [];
+        setModels(sample);
+        setLoading(false);
+      }
     };
 
     load();
     return () => { cancelled = true; };
   }, [brandId, brandIdNum, apollo]);
 
+  /** Build type filter options from loaded models */
   const types = useMemo(() => {
     const s = new Set<string>();
     (models ?? []).forEach((m) => m.type && s.add(String(m.type)));
     return ['all', ...Array.from(s)];
   }, [models]);
 
+  /** Apply filters + sorting */
   const displayed = useMemo(() => {
     let arr = models.slice();
 
@@ -295,19 +322,22 @@ export default function BrandModelsPage() {
       </div>
 
       {/* Results */}
-      {loading || displayed.length === 0 ? (
-        <SkeletonGrid count={8} />
+      {loading ? (
+        <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-[260px] rounded-2xl border border-black/10 dark:border-white/10 bg-white/5 animate-pulse" />
+          ))}
+        </div>
+      ) : displayed.length === 0 ? (
+        <div className="rounded-xl border border-black/10 dark:border-white/10 p-6 text-center text-neutral-500">
+          {t('no_results')}
+        </div>
       ) : (
         <motion.ul
           variants={gridVariants}
           initial="hidden"
           animate="show"
-          className="models-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '1.25rem',
-          }}
+          className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
         >
           <AnimatePresence initial={false}>
             {displayed.map((m) => (
