@@ -1,11 +1,13 @@
+// src/app/components/ModelCard.tsx
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
-import { motion, type Variants } from 'framer-motion';
+import { motion } from 'framer-motion';
+import type { Variants } from 'framer-motion';
+import { useState } from 'react';
 
 export type Model = {
-  id: string | number;
+  id: string;
   name: string;
   type?: string | null;
   price?: number | null;
@@ -14,30 +16,26 @@ export type Model = {
   description?: string | null;
 };
 
-function formatPrice(p?: number | null) {
-  if (typeof p !== 'number') return 'Price on request';
+export type ModelCardProps = {
+  model: Model;
+  /** Optional controlled selection flag */
+  selected?: boolean;
+  /** Optional controlled selection change */
+  onSelectChange?: (checked: boolean) => void;
+};
+
+function formatPriceEUR(v?: number | null) {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: 'EUR',
       maximumFractionDigits: 0,
-    }).format(p);
+    }).format(v);
   } catch {
-    return `€${p}`;
+    return `${Math.round(v)} €`;
   }
 }
-
-function makeBlurb(m: Model) {
-  if (m.description && m.description.trim()) return m.description;
-  const bits: string[] = [];
-  if (m.type) bits.push(m.type);
-  if (typeof m.year === 'number') bits.push(String(m.year));
-  if (typeof m.price === 'number') bits.push(formatPrice(m.price));
-  return bits.length ? bits.join(' • ') : 'Beautiful tone, built to last.';
-}
-
-// Use a typed bezier for 'ease' to satisfy TS
-const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 14, scale: 0.98 },
@@ -45,24 +43,76 @@ const cardVariants: Variants = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.35, ease: EASE },
+    transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
   },
 };
 
-export default function ModelCard({ model }: { model: Model }) {
-  const href = `/models/${String(model.id)}`;
+export default function ModelCard(props: ModelCardProps) {
+  const { model, selected, onSelectChange } = props;
+
+  // Uncontrolled fallback state when parent doesn't control selection
+  const [internalSelected, setInternalSelected] = useState(false);
+  const isSelected = selected ?? internalSelected;
+
+  const toggle = () => {
+    const next = !isSelected;
+    if (onSelectChange) onSelectChange(next);
+    else setInternalSelected(next);
+  };
+
+  const href = `/models/${encodeURIComponent(String(model.id))}`;
+  const img = model.imageUrl || 'https://placehold.co/800x500?text=Guitar';
 
   return (
-    <Link href={href} className="group block no-underline" aria-label={`Open ${model.name}`}>
-      <motion.article
-        variants={cardVariants}
-        whileHover={{ y: -4, transition: { duration: 0.18 } }} // keep simple to avoid TS fuss
-        className="relative overflow-hidden rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur shadow-sm hover:shadow-lg transition-shadow"
+    <motion.article
+      variants={cardVariants}
+      className={[
+        'relative group rounded-2xl border bg-white text-neutral-800',
+        'border-black/10 shadow-sm transition-all',
+        isSelected ? 'ring-2 ring-yellow-400 shadow-md' : 'hover:shadow-md',
+      ].join(' ')}
+    >
+      {/* Selection toggle (does not navigate) */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggle();
+        }}
+        aria-pressed={isSelected}
+        aria-label={isSelected ? 'Deselect model' : 'Select model'}
+        className={[
+          'absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm',
+          isSelected
+            ? 'bg-yellow-400 text-black border-yellow-500'
+            : 'bg-white/90 text-neutral-600 border-black/10',
+          'shadow ring-0 focus:outline-none focus:ring-2 focus:ring-yellow-400',
+        ].join(' ')}
       >
+        {isSelected ? (
+          // Check icon
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+            <path
+              fillRule="evenodd"
+              d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.414l2.293 2.293 6.543-6.543a1 1 0 011.414 0z"
+              clipRule="evenodd"
+            />
+          </svg>
+        ) : (
+          // Plus icon
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+            <path d="M9 4a1 1 0 112 0v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4z" />
+          </svg>
+        )}
+      </button>
+
+      {/* Clickable content (navigates to model details) */}
+      <Link href={href} className="block">
         {/* Image */}
-        <div className="aspect-[16/10] overflow-hidden bg-black/5 dark:bg-white/10">
+        <div className="aspect-[16/10] overflow-hidden bg-black/5">
           <motion.img
-            src={model.imageUrl || 'https://placehold.co/800x500?text=Guitar'}
+            src={img}
             alt={model.name}
             loading="lazy"
             className="h-full w-full object-cover"
@@ -74,27 +124,31 @@ export default function ModelCard({ model }: { model: Model }) {
         {/* Content */}
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="font-semibold leading-tight">{model.name}</h3>
+            <h3 className="font-semibold leading-tight text-neutral-900">{model.name}</h3>
             {model.type && (
-              <span className="shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10">
+              <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full border border-yellow-500/40 text-yellow-700 bg-yellow-50">
                 {model.type}
               </span>
             )}
           </div>
 
-          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300 line-clamp-2">
-            {makeBlurb(model)}
-          </p>
-
-          <div className="mt-3 flex items-center justify-between">
-            <span className="font-semibold">{formatPrice(model.price)}</span>
-            <span className="text-xs text-neutral-500">View details →</span>
+          <div className="mt-2 text-sm flex items-center gap-3 text-neutral-500">
+            <span>{formatPriceEUR(model.price)}</span>
+            <span className="opacity-40">•</span>
+            <span>{model.year ?? '—'}</span>
           </div>
-        </div>
 
-        {/* Subtle hover ring */}
-        <div className="pointer-events-none absolute inset-0 ring-0 ring-black/0 group-hover:ring-2 group-hover:ring-black/10 group-hover:dark:ring-white/10 transition" />
-      </motion.article>
-    </Link>
+          {model.description && (
+            <p className="mt-2 text-sm text-neutral-600 line-clamp-2">{model.description}</p>
+          )}
+        </div>
+      </Link>
+
+      {/* Soft edge highlight on hover / selected */}
+      <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300">
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-yellow-400/10 via-transparent to-transparent blur-2xl" />
+        <div className={['absolute inset-0 rounded-2xl', isSelected ? 'ring-1 ring-yellow-400/40' : 'ring-1 ring-black/10'].join(' ')} />
+      </div>
+    </motion.article>
   );
 }

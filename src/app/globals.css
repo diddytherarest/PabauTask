@@ -30,7 +30,7 @@ select option {
   }
 }
 
-body {
+body{
   min-height: 100vh;
   background: linear-gradient(135deg, #232526 0%, #414345 100%);
   color: var(--foreground);
@@ -54,6 +54,7 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid #ffd70033;
   transition: transform 0.2s, box-shadow 0.2s;
 }
+
 .brand-card:hover {
   transform: translateY(-4px) scale(1.04);
   box-shadow: 0 8px 32px rgba(0,0,0,0.3);

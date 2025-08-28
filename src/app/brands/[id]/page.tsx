@@ -6,8 +6,10 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { gql, useApolloClient } from '@apollo/client';
 import { motion, AnimatePresence } from 'framer-motion';
+
 import { useI18n } from '../../lib/lang';
 import ModelCard from '../../components/ModelCard';
+import { SkeletonGrid } from '../../components/SkeletonCard';
 
 type Model = {
   id: string;
@@ -173,7 +175,6 @@ export default function BrandModelsPage() {
       list = await tryQuery(Q_FIND_MODELS_BY_BRAND_BRANDID, { brandId }, 'find');
       if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
 
-      // Fallback: empty (you can inject sample data if you prefer)
       if (!cancelled) setLoading(false);
     };
 
@@ -294,22 +295,19 @@ export default function BrandModelsPage() {
       </div>
 
       {/* Results */}
-      {loading ? (
-        <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-[260px] rounded-2xl border border-black/10 dark:border-white/10 bg-white/5 animate-pulse" />
-          ))}
-        </div>
-      ) : displayed.length === 0 ? (
-        <div className="rounded-xl border border-black/10 dark:border-white/10 p-6 text-center text-neutral-500">
-          {t('no_results')}
-        </div>
+      {loading || displayed.length === 0 ? (
+        <SkeletonGrid count={8} />
       ) : (
         <motion.ul
           variants={gridVariants}
           initial="hidden"
           animate="show"
-          className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
+          className="models-grid"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '1.25rem',
+          }}
         >
           <AnimatePresence initial={false}>
             {displayed.map((m) => (
