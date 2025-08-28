@@ -1,32 +1,38 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@apollo/client';
-import { GET_GUITAR_DETAILS } from '../../graphql/queries'; // relative to app/models/[id]
+import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../lib/lang';
-
-type Musician = {
-  id: string | number;
-  name: string;
-  photoUrl?: string | null;
-  instrument?: string | null;
-  note?: string | null;
-};
+import { GET_GUITAR_DETAILS } from '../../graphql/queries';
 
 type Specs = {
   type?: string | null;
   body?: string | null;
   neck?: string | null;
+  // Accept BOTH shapes the API might use:
   scaleLength?: string | null;
+  scale_length?: string | null;
   pickups?: string | null;
   strings?: string | null;
 };
 
-type Brand = { id: string | number; name: string };
+type Brand = { id: string; name: string };
 
-type Model = {
-  id: string | number;
+type Musician = {
+  id: string;
+  name: string;
+  instrument?: string | null;
+  note?: string | null;
+  photoUrl?: string | null;
+};
+
+type ModelDetails = {
+  id: string;
   name: string;
   price?: number | null;
   year?: number | null;
@@ -36,216 +42,281 @@ type Model = {
   musicians?: Musician[] | null;
 };
 
-function formatPrice(p?: number | null) {
-  if (typeof p !== 'number') return 'Price on request';
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: 'EUR',
-      maximumFractionDigits: 0,
-    }).format(p);
-  } catch {
-    return `€${p}`;
-  }
-}
+type QueryShape = { findUniqueModel: ModelDetails | null };
 
-export default function ModelDetailsPage() {
+const sectionVariants = {
+  hidden: { opacity: 0, y: 6 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.18 } },
+};
+
+export default function GuitarDetailsPage() {
   const { t } = useI18n();
   const params = useParams<{ id?: string }>();
   const id = typeof params?.id === 'string' ? params.id : '';
 
-  const { data, loading, error, refetch } = useQuery<{ findUniqueModel: Model }>(GET_GUITAR_DETAILS, {
+  const { data, loading, error, refetch } = useQuery<QueryShape>(GET_GUITAR_DETAILS, {
     variables: { id },
     fetchPolicy: 'no-cache',
     skip: !id,
   });
 
-  if (!id) {
-    return (
-      <main className="p-8">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-sm text-neutral-500">{t('error')}: Missing model id in URL.</p>
-          <Link href="/" className="inline-block mt-3 underline">← Back to brands</Link>
-        </div>
-      </main>
-    );
-  }
+  const model = data?.findUniqueModel ?? null;
 
-  if (loading) {
-    return (
-      <main className="p-8">
-        <div className="max-w-6xl mx-auto animate-pulse">
-          <div className="aspect-[16/8] w-full rounded-2xl bg-black/5 dark:bg-white/10 mb-6" />
-          <div className="h-8 w-1/2 rounded bg-black/5 dark:bg-white/10 mb-3" />
-          <div className="h-4 w-2/3 rounded bg-black/5 dark:bg-white/10 mb-8" />
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="h-40 rounded-xl bg-black/5 dark:bg-white/10" />
-            <div className="h-40 rounded-xl bg-black/5 dark:bg-white/10" />
-          </div>
-        </div>
-      </main>
-    );
-  }
+  // Tabs
+  const [tab, setTab] = useState<'specs' | 'musicians'>('specs');
 
-  if (error) {
-    return (
-      <main className="p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="rounded-xl border border-red-300/50 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-200">
-            <p className="font-semibold">Error loading model</p>
-            <p className="text-sm mt-2">{error.message}</p>
-            <button onClick={() => refetch()} className="mt-3 inline-flex items-center rounded-md border px-3 py-1 text-sm">
-              Retry
-            </button>
-          </div>
-          <Link href="/" className="inline-block mt-4 underline">← Back to brands</Link>
-        </div>
-      </main>
-    );
-  }
+  // Musicians pagination: 2 at a time
+  const musicians = model?.musicians ?? [];
+  const pageSize = 2;
+  const pages = Math.max(1, Math.ceil((musicians?.length ?? 0) / pageSize));
+  const [page, setPage] = useState(0);
 
-  const m = data?.findUniqueModel;
-  if (!m) {
-    return (
-      <main className="p-8">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-sm text-neutral-500">{t('no_results') ?? 'No results.'}</p>
-          <Link href="/" className="inline-block mt-3 underline">← Back to brands</Link>
-        </div>
-      </main>
-    );
-  }
+  useEffect(() => {
+    setPage(0);
+  }, [tab, musicians?.length]);
 
-  const spec = m.specs ?? {};
-  const priceText = formatPrice(m.price);
+  const visibleMusicians = useMemo(() => {
+    const start = page * pageSize;
+    return (musicians || []).slice(start, start + pageSize);
+  }, [page, musicians]);
+
+  const brandHref = model?.brand?.id ? `/brands/${model.brand.id}` : '/';
+
+  // Helper to prefer snake_case if present, then camelCase
+  const scaleVal =
+    model?.specs?.scale_length ?? model?.specs?.scaleLength ?? null;
 
   return (
-    <main className="p-0 sm:p-8">
-      <article className="max-w-6xl mx-auto">
-        {/* Hero */}
-        <div className="relative overflow-hidden">
-          <div className="aspect-[16/6] w-full bg-black/5 dark:bg-white/10">
-            <img
-              src={m.imageUrl || 'https://placehold.co/1600x600?text=Guitar'}
-              alt={m.name}
-              className="h-full w-full object-cover"
+    <main className="relative p-8">
+      {/* Decorative background */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(650px_circle_at_15%_-10%,rgba(250,204,21,0.10),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(550px_circle_at_85%_0%,rgba(250,204,21,0.06),transparent_60%)]" />
+        <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.25)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.25)_1px,transparent_1px)] bg-[size:24px_24px]" />
+      </div>
+
+      {/* Header / Back */}
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight">
+            <span className="bg-gradient-to-br from-yellow-400 to-yellow-200 bg-clip-text text-transparent">
+              {model?.name || t('guitar')}
+            </span>
+          </h1>
+          <p className="mt-1 text-sm text-neutral-400">
+            {model?.brand?.name ? `${t('by')} ${model.brand.name}` : ''}
+          </p>
+        </div>
+        <Link
+          href={brandHref}
+          className="text-sm rounded-xl border border-black/10 dark:border-white/10 px-3 py-1.5 bg-white/60 dark:bg-white/5 backdrop-blur hover:border-black/20 hover:dark:border-white/20"
+        >
+          ← {t('back_to_models')}
+        </Link>
+      </div>
+
+      {/* Card */}
+      <section className="mb-6 grid gap-6 lg:grid-cols-[320px,1fr]">
+        {/* Image */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="show"
+          className="relative aspect-[4/3] w-full max-w-[640px] overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur"
+        >
+          {model?.imageUrl ? (
+            <Image
+              src={model.imageUrl}
+              alt={model?.name || 'Guitar'}
+              fill
+              sizes="(min-width: 1024px) 320px, 100vw"
+              className="object-cover"
+              priority
             />
-          </div>
+          ) : (
+            <div className="h-full w-full grid place-items-center text-neutral-500">—</div>
+          )}
+        </motion.div>
 
-          {/* Title card overlays the hero */}
-          <div className="px-4 sm:px-0">
-            <div className="relative -mt-10 sm:-mt-12 max-w-3xl rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-white/5 backdrop-blur p-5 mx-4 sm:mx-0">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-bold leading-tight">{m.name}</h1>
-                  <div className="mt-1 text-sm text-neutral-600 dark:text-neutral-300 flex items-center gap-2">
-                    {m.brand ? (
+        {/* Meta + Tabs */}
+        <motion.div
+          variants={sectionVariants}
+          initial="hidden"
+          animate="show"
+          className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-5"
+        >
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+            <div>
+              <dt className="opacity-60">{t('type')}</dt>
+              <dd className="font-semibold">{model?.specs?.type ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="opacity-60">{t('year')}</dt>
+              <dd className="font-semibold">{model?.year ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="opacity-60">{t('price')}</dt>
+              <dd className="font-semibold">
+                {typeof model?.price === 'number' ? `€${model.price}` : '—'}
+              </dd>
+            </div>
+          </dl>
+
+          {/* Tabs */}
+          <div className="mt-6">
+            <div className="inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
+              <button
+                onClick={() => setTab('specs')}
+                className={`px-4 py-1.5 rounded-lg text-sm transition ${
+                  tab === 'specs'
+                    ? 'bg-yellow-400/20 text-yellow-200'
+                    : 'hover:bg-white/5 text-neutral-300'
+                }`}
+              >
+                {t('specs')}
+              </button>
+              <button
+                onClick={() => setTab('musicians')}
+                className={`px-4 py-1.5 rounded-lg text-sm transition ${
+                  tab === 'musicians'
+                    ? 'bg-yellow-400/20 text-yellow-200'
+                    : 'hover:bg-white/5 text-neutral-300'
+                }`}
+              >
+                {t('musicians')}
+              </button>
+            </div>
+
+            {/* Tab panels */}
+            <div className="mt-4">
+              <AnimatePresence mode="wait">
+                {tab === 'specs' ? (
+                  <motion.div
+                    key="specs"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.16 }}
+                    className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm"
+                  >
+                    <SpecRow label={t('body')} value={model?.specs?.body} />
+                    <SpecRow label={t('neck')} value={model?.specs?.neck} />
+                    <SpecRow label={t('scale_length')} value={scaleVal} />
+                    <SpecRow label={t('pickups')} value={model?.specs?.pickups} />
+                    <SpecRow label={t('strings')} value={model?.specs?.strings} />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="musicians"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.16 }}
+                    className="rounded-xl border border-white/10 bg-white/5 p-4"
+                  >
+                    {musicians?.length ? (
                       <>
-                        <span>by</span>
-                        <Link className="underline" href={`/brands/${String(m.brand.id)}`} prefetch={false}>
-                          {m.brand.name}
-                        </Link>
+                        <ul className="grid sm:grid-cols-2 gap-4">
+                          {visibleMusicians.map((m) => (
+                            <li key={m.id}>
+                              <MusicianCard m={m} />
+                            </li>
+                          ))}
+                        </ul>
+
+                        {/* Pager: dots + "show 2 more" */}
+                        {pages > 1 && (
+                          <div className="mt-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {Array.from({ length: pages }).map((_, i) => (
+                                <button
+                                  key={i}
+                                  aria-label={`page ${i + 1}`}
+                                  onClick={() => setPage(i)}
+                                  className={`h-2.5 w-2.5 rounded-full transition ${
+                                    i === page ? 'bg-yellow-300' : 'bg-white/20 hover:bg-white/40'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+
+                            {page < pages - 1 ? (
+                              <button
+                                onClick={() => setPage((p) => Math.min(p + 1, pages - 1))}
+                                className="text-xs rounded-lg border border-white/10 px-3 py-1 hover:bg-white/5"
+                              >
+                                {t('show_two_more')}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setPage(0)}
+                                className="text-xs rounded-lg border border-white/10 px-3 py-1 hover:bg-white/5"
+                              >
+                                {t('back_to_start')}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </>
-                    ) : null}
-                    {typeof m.year === 'number' ? (
-                      <>
-                        <span>•</span>
-                        <span>{m.year}</span>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-semibold">{priceText}</div>
-                  {spec.type ? <div className="text-xs text-neutral-500">{spec.type}</div> : null}
-                </div>
-              </div>
+                    ) : (
+                      <p className="text-sm text-neutral-400">{t('no_musicians')}</p>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
+        </motion.div>
+      </section>
+
+      {/* States */}
+      {loading && (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-neutral-400">
+          {t('loading')}…
         </div>
-
-        {/* Content sections */}
-        <div className="px-4 sm:px-0 mt-8 grid gap-8 lg:grid-cols-3">
-          {/* Specs */}
-          <section className="lg:col-span-2">
-            <h2 className="text-lg font-semibold mb-3">Specifications</h2>
-            <div className="overflow-hidden rounded-2xl border border-black/10 dark:border-white/10">
-              <table className="w-full text-sm">
-                <tbody className="[&_tr:nth-child(odd)]:bg-black/5 dark:[&_tr:nth-child(odd)]:bg-white/5">
-                  {[
-                    ['Type', spec.type],
-                    ['Body', spec.body],
-                    ['Neck', spec.neck],
-                    ['Scale length', spec.scaleLength],
-                    ['Pickups', spec.pickups],
-                    ['Strings', spec.strings],
-                  ]
-                    .filter(([, v]) => v && String(v).trim().length > 0)
-                    .map(([k, v]) => (
-                      <tr key={k}>
-                        <th className="text-left font-medium px-4 py-3 w-40">{k}</th>
-                        <td className="px-4 py-3">{String(v)}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* Sidebar / CTA */}
-          <aside className="lg:col-span-1">
-            <div className="rounded-2xl border border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-white/5 backdrop-blur">
-              <h3 className="font-semibold mb-2">Interested?</h3>
-              <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                Contact us for availability, setup options, and bundle discounts.
-              </p>
-              <a href="#" className="mt-3 inline-flex items-center justify-center rounded-xl border border-black/10 dark:border-white/10 px-4 py-2 hover:border-black/20 hover:dark:border-white/20">
-                Get a quote
-              </a>
-              <div className="mt-3 text-xs text-neutral-500">Model ID: {String(m.id)}</div>
-            </div>
-          </aside>
-        </div>
-
-        {/* Musicians */}
-        {m.musicians && m.musicians.length > 0 && (
-          <section className="mt-10 px-4 sm:px-0">
-            <h2 className="text-lg font-semibold mb-3">Famous players</h2>
-            <ul className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-              {m.musicians.map((p) => (
-                <li key={String(p.id)}>
-                  <article className="h-full overflow-hidden rounded-2xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur">
-                    <div className="aspect-[4/3] bg-black/5 dark:bg-white/10 overflow-hidden">
-                      <img
-                        src={p.photoUrl || 'https://placehold.co/800x600?text=Artist'}
-                        alt={p.name}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-semibold leading-tight">{p.name}</h3>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                        {[p.instrument, p.note].filter(Boolean).join(' • ') || 'Guitarist'}
-                      </p>
-                    </div>
-                  </article>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Back link */}
-        <div className="mt-10 px-4 sm:px-0">
-          <Link
-            href={m.brand ? `/brands/${String(m.brand.id)}` : '/'}
-            className="inline-flex items-center rounded-xl border border-black/10 dark:border-white/10 px-3 py-1.5 bg-white/60 dark:bg-white/5 backdrop-blur hover:border-black/20 hover:dark:border-white/20"
+      )}
+      {error && (
+        <div className="rounded-xl border border-red-300/50 bg-red-50/10 p-4 text-red-300">
+          {t('error')}: {error.message}{' '}
+          <button
+            onClick={() => refetch()}
+            className="ml-2 inline-flex rounded-lg border border-white/10 px-2 py-1 text-xs hover:bg-white/5"
           >
-            ← Back to {m.brand?.name || 'all brands'}
-          </Link>
+            {t('try_again')}
+          </button>
         </div>
-      </article>
+      )}
     </main>
+  );
+}
+
+/* ───── helpers ───── */
+
+function SpecRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="grid sm:grid-cols-[160px,1fr] items-baseline gap-2 py-2 border-b border-white/5 last:border-0">
+      <div className="text-xs opacity-70">{label}</div>
+      <div className="text-sm font-medium">{value ?? '—'}</div>
+    </div>
+  );
+}
+
+function MusicianCard({ m }: { m: Musician }) {
+  return (
+    <div className="relative rounded-xl border border-white/10 bg-white/5 p-3 flex items-center gap-3">
+      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full ring-2 ring-yellow-400/70 bg-black/40">
+        {m.photoUrl ? (
+          <Image src={m.photoUrl} alt={m.name} fill sizes="48px" className="object-cover" />
+        ) : (
+          <div className="h-full w-full grid place-items-center text-xs opacity-60">—</div>
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="font-semibold leading-tight">{m.name}</div>
+        <div className="text-xs text-neutral-400">
+          {m.instrument || ''}{m.instrument && m.note ? ' • ' : ''}{m.note || ''}
+        </div>
+      </div>
+    </div>
   );
 }

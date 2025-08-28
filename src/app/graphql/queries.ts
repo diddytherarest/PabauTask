@@ -1,7 +1,5 @@
-// src/app/graphql/queries.ts
 import { gql } from '@apollo/client';
 
-/** Home page: list of brands */
 export const GET_BRANDS = gql`
   query GetBrands {
     findAllBrands {
@@ -11,56 +9,47 @@ export const GET_BRANDS = gql`
   }
 `;
 
-/** Primary: many backends expose brand(id: ID!) { models { ... } } */
-export const Q_BRAND_MODELS_SIMPLE = gql`
-  query BrandModelsSimple($id: ID!) {
-    brand(id: $id) {
+/**
+ * Fetch models for a brand by ID only (no server-side sort).
+ * Alias `image` -> `imageUrl` so the UI can keep using `imageUrl`.
+ */
+export const Q_FIND_BRAND_MODELS = gql`
+  query FindBrandModels($id: ID!) {
+    findBrandModels(id: $id) {
       id
       name
-      models {
-        id
-        name
-        type
-        price
-        year
-        imageUrl
-        description
-      }
+      type
+      price
+      imageUrl: image
     }
   }
 `;
 
-/** Fallback: some schemas type the argument as Int! instead of ID! */
-export const Q_BRAND_MODELS_SIMPLE_INT = gql`
-  query BrandModelsSimpleInt($id: Int!) {
-    brand(id: $id) {
-      id
-      name
-      models {
-        id
-        name
-        type
-        price
-        year
-        imageUrl
-        description
-      }
-    }
-  }
-`;
-
-/** Details for a single model (for /models/[id]) */
+/**
+ * Details query (safe subset). `image` is aliased to `imageUrl`.
+ */
 export const GET_GUITAR_DETAILS = gql`
   query GetGuitarDetails($id: ID!) {
     findUniqueModel(id: $id) {
       id
       name
       price
-      year
-      imageUrl
+      imageUrl: image
       brand { id name }
-      specs { type body neck scaleLength pickups strings }
-      musicians { id name photoUrl instrument note }
+      specs {
+        body
+        neck
+        scaleLength
+        pickups
+        strings
+      }
+      musicians {
+        id
+        name
+        instrument
+        note
+        photoUrl
+      }
     }
   }
 `;
