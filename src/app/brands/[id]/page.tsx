@@ -1,4 +1,3 @@
-// src/app/brands/[id]/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -7,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { gql, useApolloClient } from '@apollo/client';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useI18n } from '../../lib/lang';
+
 import ModelCard, { type Model } from '../../components/ModelCard';
 
 const Q_BRAND_BY_ID_ID = gql`
@@ -14,7 +14,7 @@ const Q_BRAND_BY_ID_ID = gql`
     brand(id: $id) {
       id
       name
-      models { id name type price imageUrl year description }
+         models { id name type price imageUrl year description }
     }
   }
 `;
@@ -24,7 +24,7 @@ const Q_BRAND_BY_ID_INT = gql`
     brand(id: $id) {
       id
       name
-      models { id name type price imageUrl year description }
+           models { id name type price imageUrl year description }
     }
   }
 `;
@@ -32,6 +32,7 @@ const Q_BRAND_BY_ID_INT = gql`
 const Q_FIND_MODELS_BY_BRAND_ID = gql`
   query FindModelsByBrand_ID($id: ID!) {
     findBrandModels(id: $id) {
+
       id name type price imageUrl year description
     }
   }
@@ -40,12 +41,11 @@ const Q_FIND_MODELS_BY_BRAND_ID = gql`
 const Q_FIND_MODELS_BY_BRAND_BRANDID = gql`
   query FindModelsByBrand_BRANDID($brandId: ID!) {
     findBrandModels(brandId: $brandId) {
-      id name type price imageUrl year description
+  id name type price imageUrl year description
     }
   }
 `;
 
-/** Animation for the grid */
 const gridVariants: Variants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
@@ -55,7 +55,7 @@ const gridVariants: Variants = {
 function coerceModels(arr: any[]): Model[] {
   const out: Model[] = [];
   for (let i = 0; i < arr.length; i++) {
-    const raw = arr[i] ?? {};
+     const raw = arr[i] ?? {};
     const id = String(raw.id ?? raw.modelId ?? i);
     const name = String(raw.name ?? raw.modelName ?? `Model ${i + 1}`);
     const type = raw.type ?? raw.modelType ?? null;
@@ -79,7 +79,6 @@ function coerceModels(arr: any[]): Model[] {
   return out;
 }
 
-/** Fallback models by brand (IDs 1–10 match your brands page order) */
 const FALLBACK: Record<string, Model[]> = {
   // 1: Fender
   '1': [
@@ -194,9 +193,7 @@ export default function BrandModelsPage() {
 
       list = await tryQuery(Q_FIND_MODELS_BY_BRAND_BRANDID, { brandId }, 'find');
       if (!cancelled && list.length) { setModels(coerceModels(list)); setLoading(false); return; }
-
-      // 2) Fallback sample data so the grid is filled with real-looking models
-      if (!cancelled) {
+     if (!cancelled) {
         const sample = FALLBACK[brandId] ?? [];
         setModels(sample);
         setLoading(false);
@@ -321,8 +318,7 @@ export default function BrandModelsPage() {
         </div>
       </div>
 
-      {/* Results */}
-      {loading ? (
+       {loading ? (
         <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-[260px] rounded-2xl border border-black/10 dark:border-white/10 bg-white/5 animate-pulse" />
@@ -337,7 +333,8 @@ export default function BrandModelsPage() {
           variants={gridVariants}
           initial="hidden"
           animate="show"
-          className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
+
+           className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
         >
           <AnimatePresence initial={false}>
             {displayed.map((m) => (
